@@ -3,6 +3,7 @@ import os
 import random
 
 import torch
+from torch.cuda import is_available
 import torch.nn as nn
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
@@ -26,7 +27,8 @@ def trainset(args):
         dataset, batch_size=args.batch_size,shuffle=True, 
         num_workers=args.workers
         )
-    device = torch.device('cuda' if args.cuda else 'cpu')
+    cuda_available = torch.cuda.is_available()
+    device = torch.device('cuda' if args.cuda and cuda_available else 'cpu')
 
     return trainloader, device
 
@@ -37,11 +39,11 @@ def weights_init(m):
     elif classname.find('BatchNorm') != -1:
         nn.init.normal_(m.weight.data, 1.0, 0.02)
         nn.init.constant_(m.bias.data, 0)
-
+a
 class Generator(nn.Module):
     def __init__(self, args):
         super(Generator, self).__init__()
-        self.ngpu = ngpu
+        # self.ngpu = ngpu
         self.gen = nn.Sequential(
             nn.ConvTranspose2d(args.noise, 64 * 8, 4, 1, 0, bias=False),
             nn.BatchNorm2d(64 * 8),
@@ -61,9 +63,32 @@ class Generator(nn.Module):
     def forward(self, x):
         return self.gen(x)
 
+class Discriminator(nn.Module):
+    def __init__(self, ngpu):
+        super(Discriminator, self).__init__()
+        self.ngpu = ngpu
+        self.main = nn.Sequential(
+            nn.Conv2d(3, 64, 4, 2, 1, bias=False),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 4),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 8),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, input):
+        return self.main(input)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--no_cuda', action='store_true', default=True)
+    parser.add_argument('--cuda', action='store_true', default=True)
     parser.add_argument('--root', type=str, required=True)
     parser.add_argument('--seed', type=int, default=999)
     parser.add_argument('--workers', type=int, defualt=2)
@@ -79,3 +104,9 @@ if __name__ == '__main__':
     torch.manual_seed(args.seed)
 
     trainloader, device = trainset(args)
+    generator = Generator().to(device)
+    generator.apply(weights_init)
+    discriminator = Discriminator().to(device)
+    discriminator.apply(weights_init)
+
+    criterion = nn.BCELoss()
