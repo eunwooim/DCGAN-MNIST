@@ -4,7 +4,6 @@ import random
 import torch
 from torch.cuda import is_available
 import torch.nn as nn
-import torch.nn.parallel
 import torch.optim as optim
 import torch.utils.data
 import torchvision.datasets
